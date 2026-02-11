@@ -1,13 +1,157 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { storesAPI, ratingsAPI } from '../../utils/api';
 import StarRating from '../../components/StarRating';
 import LoadingSpinner from '../../components/LoadingSpinner';
 
+const StoreCard = ({ store, onRatingDone }) => {
+  const [open, setOpen] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(store.user_rating?.rating || 0);
+  const [comment, setComment] = useState(store.user_rating?.comment || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [feedback, setFeedback] = useState(null); // { type: 'success'|'error', msg }
+
+  const hasExisting = !!store.user_rating;
+  const avg = parseFloat(store.rating_info?.average_rating) || 0;
+  const total = Number(store.rating_info?.total_ratings) || 0;
+
+  const handleSubmit = async () => {
+    if (!selectedRating) return;
+    setSubmitting(true);
+    setFeedback(null);
+    try {
+      if (hasExisting) {
+        await ratingsAPI.update(store.user_rating.id, { rating: selectedRating, comment });
+        setFeedback({ type: 'success', msg: 'Rating updated!' });
+      } else {
+        await ratingsAPI.submit({ store_id: store.id, rating: selectedRating, comment });
+        setFeedback({ type: 'success', msg: 'Rating submitted!' });
+      }
+      setTimeout(() => {
+        onRatingDone();
+        setOpen(false);
+        setFeedback(null);
+      }, 800);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Something went wrong';
+      setFeedback({ type: 'error', msg });
+    }
+    setSubmitting(false);
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm flex flex-col">
+      <div className="p-5 flex-1">
+        {/* Store name & owner */}
+        <h3 className="text-base font-semibold text-gray-900 truncate" title={store.name}>
+          {store.name}
+        </h3>
+        <p className="text-xs text-gray-500 mt-0.5 truncate" title={store.address}>
+          {store.address}
+        </p>
+        <p className="text-xs text-gray-400 mt-0.5">Owner: {store.owner_name}</p>
+
+        {/* Overall rating */}
+        <div className="flex items-center gap-2 mt-3">
+          <StarRating rating={avg} readOnly size="sm" />
+          <span className="text-sm text-gray-600">
+            {avg > 0 ? avg.toFixed(1) : '0.0'} ({total})
+          </span>
+        </div>
+
+        {/* Existing user rating badge */}
+        {hasExisting && !open && (
+          <div className="mt-3 px-3 py-2 bg-primary-50 rounded text-sm">
+            <span className="font-medium text-primary-700">Your rating:</span>{' '}
+            <span className="text-primary-800">{store.user_rating.rating}★</span>
+            {store.user_rating.comment && (
+              <p className="text-primary-600 text-xs mt-0.5 line-clamp-2">
+                &ldquo;{store.user_rating.comment}&rdquo;
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Rating form (toggled) */}
+        {open && (
+          <div className="mt-3 p-3 border border-gray-200 rounded-lg space-y-3">
+            <p className="text-sm font-medium text-gray-700">
+              {hasExisting ? 'Update Your Rating' : 'Rate This Store'}
+            </p>
+
+            {/* Star selector */}
+            <div>
+              <StarRating rating={selectedRating} onRatingChange={setSelectedRating} size="md" />
+            </div>
+
+            {/* Comment */}
+            <textarea
+              className="input-field text-sm"
+              placeholder="Leave a comment (optional, max 500 chars)"
+              rows="2"
+              maxLength={500}
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+            />
+            <div className="flex justify-end">
+              <span className="text-xs text-gray-400">{comment.length}/500</span>
+            </div>
+
+            {feedback && (
+              <div className={feedback.type === 'success' ? 'alert-success' : 'alert-error'}>
+                {feedback.msg}
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button
+                onClick={handleSubmit}
+                disabled={submitting || !selectedRating}
+                className="btn-primary text-sm flex-1 flex justify-center items-center"
+              >
+                {submitting ? (
+                  <LoadingSpinner size="sm" />
+                ) : hasExisting ? (
+                  'Update Rating'
+                ) : (
+                  'Submit Rating'
+                )}
+              </button>
+              <button
+                onClick={() => { setOpen(false); setFeedback(null); }}
+                className="btn-secondary text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Footer button */}
+      {!open && (
+        <div className="px-5 pb-4">
+          <button
+            onClick={() => {
+              setSelectedRating(store.user_rating?.rating || 0);
+              setComment(store.user_rating?.comment || '');
+              setOpen(true);
+            }}
+            className={`w-full text-sm ${hasExisting ? 'btn-secondary' : 'btn-primary'}`}
+          >
+            {hasExisting ? 'Update Rating' : 'Rate Store'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ───── Dashboard ───── */
 const UserDashboard = () => {
   const [stores, setStores] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchName, setSearchName] = useState('');
-  const [searchAddress, setSearchAddress] = useState('');
+  const [error, setError] = useState('');
+  const [searchFields, setSearchFields] = useState({ name: '', address: '' });
   const [filters, setFilters] = useState({
     name: '',
     address: '',
@@ -15,245 +159,117 @@ const UserDashboard = () => {
     sortOrder: 'desc',
   });
 
-  useEffect(() => {
-    const loadStores = async () => {
-      try {
-        const response = await storesAPI.getAll(filters);
-        setStores(response.data.data.stores);
-      } catch (error) {
-        console.error('Error loading stores:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const loadStores = useCallback(async () => {
+    setError('');
+    try {
+      const params = {};
+      if (filters.name) params.name = filters.name;
+      if (filters.address) params.address = filters.address;
+      params.sortBy = filters.sortBy;
+      params.sortOrder = filters.sortOrder;
 
-    loadStores();
+      const res = await storesAPI.getAll(params);
+      setStores(res.data.data.stores || []);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load stores');
+    } finally {
+      setLoading(false);
+    }
   }, [filters]);
 
-  const loadStores = async () => {
-    try {
-      const response = await storesAPI.getAll(filters);
-      setStores(response.data.data.stores);
-    } catch (error) {
-      console.error('Error loading stores:', error);
-    }
-  };
+  useEffect(() => { loadStores(); }, [loadStores]);
 
   const handleSearch = (e) => {
     e.preventDefault();
-    setFilters({
-      ...filters,
-      name: searchName,
-      address: searchAddress,
-    });
+    setFilters((prev) => ({ ...prev, name: searchFields.name, address: searchFields.address }));
   };
 
-  const submitRating = async (storeId, rating, comment = '') => {
-    try {
-      await ratingsAPI.submit({ store_id: storeId, rating, comment });
-      loadStores(); // Refresh stores to show new rating
-    } catch (error) {
-      console.error('Error submitting rating:', error);
-    }
-  };
-
-  const updateRating = async (ratingId, rating, comment = '') => {
-    try {
-      await ratingsAPI.update(ratingId, { rating, comment });
-      loadStores(); // Refresh stores
-    } catch (error) {
-      console.error('Error updating rating:', error);
-    }
+  const clearFilters = () => {
+    setSearchFields({ name: '', address: '' });
+    setFilters({ name: '', address: '', sortBy: 'created_at', sortOrder: 'desc' });
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-96">
-        <LoadingSpinner size="lg" />
+      <div className="flex justify-center items-center min-h-[400px]">
+        <LoadingSpinner size="lg" text="Loading stores..." />
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-4">Browse Stores</h1>
-        
-        {/* Search Form */}
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="flex gap-4">
+    <div>
+      <h1 className="page-title">Browse Stores</h1>
+
+      {error && <div className="alert-error mb-4">{error}</div>}
+
+      {/* Search & Sort */}
+      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-6">
+        <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-end">
+          <div className="flex-1 min-w-[160px]">
+            <label className="label">Store Name</label>
             <input
               type="text"
-              placeholder="Search by store name..."
-              className="input-field flex-1"
-              value={searchName}
-              onChange={(e) => setSearchName(e.target.value)}
+              className="input-field"
+              placeholder="Search by name..."
+              value={searchFields.name}
+              onChange={(e) => setSearchFields((s) => ({ ...s, name: e.target.value }))}
             />
+          </div>
+          <div className="flex-1 min-w-[160px]">
+            <label className="label">Address</label>
             <input
               type="text"
+              className="input-field"
               placeholder="Search by address..."
-              className="input-field flex-1"
-              value={searchAddress}
-              onChange={(e) => setSearchAddress(e.target.value)}
+              value={searchFields.address}
+              onChange={(e) => setSearchFields((s) => ({ ...s, address: e.target.value }))}
             />
-            <button type="submit" className="btn-primary">
-              Search
-            </button>
-            <button 
-              type="button" 
-              onClick={() => {
-                setSearchName('');
-                setSearchAddress('');
-                setFilters({
-                  ...filters,
-                  name: '',
-                  address: '',
-                });
-              }}
-              className="btn-secondary"
+          </div>
+          <div className="min-w-[130px]">
+            <label className="label">Sort By</label>
+            <select
+              className="input-field"
+              value={filters.sortBy}
+              onChange={(e) => setFilters((f) => ({ ...f, sortBy: e.target.value }))}
             >
-              Clear
-            </button>
+              <option value="created_at">Date</option>
+              <option value="name">Name</option>
+            </select>
+          </div>
+          <div className="min-w-[120px]">
+            <label className="label">Order</label>
+            <select
+              className="input-field"
+              value={filters.sortOrder}
+              onChange={(e) => setFilters((f) => ({ ...f, sortOrder: e.target.value }))}
+            >
+              <option value="desc">Desc</option>
+              <option value="asc">Asc</option>
+            </select>
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" className="btn-primary">Search</button>
+            <button type="button" onClick={clearFilters} className="btn-secondary">Clear</button>
           </div>
         </form>
-
-        {/* Sort Options */}
-        <div className="flex gap-4 mb-6">
-          <select
-            className="input-field"
-            value={filters.sortBy}
-            onChange={(e) => setFilters({...filters, sortBy: e.target.value})}
-          >
-            <option value="created_at">Sort by Date</option>
-            <option value="name">Sort by Name</option>
-          </select>
-          <select
-            className="input-field"
-            value={filters.sortOrder}
-            onChange={(e) => setFilters({...filters, sortOrder: e.target.value})}
-          >
-            <option value="desc">Descending</option>
-            <option value="asc">Ascending</option>
-          </select>
-        </div>
       </div>
 
       {/* Stores Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stores.map((store) => (
-          <StoreCard
-            key={store.id}
-            store={store}
-            onSubmitRating={submitRating}
-            onUpdateRating={updateRating}
-          />
-        ))}
-      </div>
-
-      {stores.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-gray-500">No stores found matching your criteria.</p>
+      {stores.length === 0 ? (
+        <div className="text-center py-16">
+          <svg className="mx-auto h-10 w-10 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" />
+          </svg>
+          <p className="mt-2 text-sm text-gray-500">No stores found.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {stores.map((store) => (
+            <StoreCard key={store.id} store={store} onRatingDone={loadStores} />
+          ))}
         </div>
       )}
-    </div>
-  );
-};
-
-const StoreCard = ({ store, onSubmitRating, onUpdateRating }) => {
-  const [showRatingForm, setShowRatingForm] = useState(false);
-  const [newRating, setNewRating] = useState(store.user_rating?.rating || 0);
-  const [comment, setComment] = useState(store.user_rating?.comment || '');
-  const [loading, setLoading] = useState(false);
-
-  const handleRatingSubmit = async () => {
-    if (!newRating) return;
-    
-    setLoading(true);
-    try {
-      if (store.user_rating) {
-        await onUpdateRating(store.user_rating.id, newRating, comment);
-      } else {
-        await onSubmitRating(store.id, newRating, comment);
-      }
-      setShowRatingForm(false);
-    } catch (error) {
-      console.error('Error with rating:', error);
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="card">
-      <h3 className="text-xl font-semibold text-gray-900 mb-2">{store.name}</h3>
-      <p className="text-gray-600 mb-2">{store.address}</p>
-      <p className="text-sm text-gray-500 mb-4">Owner: {store.owner_name}</p>
-      
-      {/* Overall Rating */}
-      <div className="mb-4">
-        <p className="text-sm font-medium text-gray-700 mb-1">Overall Rating</p>
-        <div className="flex items-center">
-          <StarRating 
-            rating={parseFloat(store.rating_info.average_rating) || 0} 
-            readOnly 
-          />
-          <span className="ml-2 text-sm text-gray-600">
-            ({store.rating_info.total_ratings} reviews)
-          </span>
-        </div>
-      </div>
-
-      {/* User's Rating */}
-      {store.user_rating && (
-        <div className="mb-4 p-3 bg-primary-50 rounded">
-          <p className="text-sm font-medium text-primary-700 mb-1">Your Rating</p>
-          <StarRating rating={store.user_rating.rating} readOnly />
-          {store.user_rating.comment && (
-            <p className="text-sm text-primary-600 mt-1">"{store.user_rating.comment}"</p>
-          )}
-        </div>
-      )}
-
-      {/* Rating Form */}
-      {showRatingForm && (
-        <div className="mb-4 p-4 border rounded">
-          <p className="text-sm font-medium mb-2">
-            {store.user_rating ? 'Update Your Rating' : 'Rate This Store'}
-          </p>
-          <div className="mb-3">
-            <StarRating rating={newRating} onRatingChange={setNewRating} />
-          </div>
-          <textarea
-            className="input-field mb-3"
-            placeholder="Add a comment (optional)"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows="2"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={handleRatingSubmit}
-              disabled={loading || !newRating}
-              className="btn-primary text-sm"
-            >
-              {loading ? <LoadingSpinner size="sm" /> : 'Submit'}
-            </button>
-            <button
-              onClick={() => setShowRatingForm(false)}
-              className="btn-secondary text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Action Button */}
-      <button
-        onClick={() => setShowRatingForm(true)}
-        className="btn-primary w-full text-sm"
-      >
-        {store.user_rating ? 'Update Rating' : 'Rate Store'}
-      </button>
     </div>
   );
 };

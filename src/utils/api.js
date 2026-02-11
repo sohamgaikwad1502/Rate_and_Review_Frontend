@@ -39,19 +39,13 @@ export const authAPI = {
 export const storesAPI = {
   getAll: (params) => api.get('/stores/all', { params }),
   getById: (id) => api.get(`/stores/${id}`),
-  create: (storeData) => api.post('/stores/create', storeData),
-  getMy: () => api.get('/stores/my-stores'),
-  update: (id, storeData) => api.put(`/stores/${id}`, storeData),
-  delete: (id) => api.delete(`/stores/${id}`),
 };
 
 export const ratingsAPI = {
   getByStore: (storeId) => api.get(`/ratings/store/${storeId}`),
-  getById: (id) => api.get(`/ratings/${id}`),
   submit: (ratingData) => api.post('/ratings/submit', ratingData),
   getMy: () => api.get('/ratings/my-ratings'),
   update: (id, ratingData) => api.put(`/ratings/${id}`, ratingData),
-  delete: (id) => api.delete(`/ratings/${id}`),
 };
 
 export const adminAPI = {

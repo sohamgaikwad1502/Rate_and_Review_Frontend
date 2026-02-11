@@ -1,27 +1,29 @@
 import React from 'react';
 
-const StarRating = ({ rating, onRatingChange, readOnly = false, size = 'md' }) => {
+const StarRating = ({ rating = 0, onRatingChange, readOnly = false, size = 'md', showValue = false }) => {
   const sizeClasses = {
     sm: 'w-4 h-4',
-    md: 'w-6 h-6',
-    lg: 'w-8 h-8',
+    md: 'w-5 h-5',
+    lg: 'w-7 h-7',
   };
 
+  const numericRating = typeof rating === 'string' ? parseFloat(rating) : rating;
+
   return (
-    <div className="flex space-x-1">
+    <div className="flex items-center gap-0.5">
       {[1, 2, 3, 4, 5].map((star) => (
         <button
           key={star}
           type="button"
           disabled={readOnly}
           onClick={() => !readOnly && onRatingChange && onRatingChange(star)}
-          className={`${sizeClasses[size]} ${
+          className={`${
             readOnly ? 'cursor-default' : 'cursor-pointer hover:scale-110'
-          } transition-transform`}
+          } transition-transform focus:outline-none`}
         >
           <svg
             className={`${sizeClasses[size]} ${
-              star <= rating ? 'text-yellow-400' : 'text-gray-300'
+              star <= numericRating ? 'text-yellow-400' : 'text-gray-300'
             } fill-current`}
             viewBox="0 0 20 20"
           >
@@ -29,9 +31,9 @@ const StarRating = ({ rating, onRatingChange, readOnly = false, size = 'md' }) =
           </svg>
         </button>
       ))}
-      {rating && (
-        <span className="ml-2 text-gray-600 text-sm">
-          ({rating.toFixed(1)})
+      {showValue && numericRating > 0 && (
+        <span className="ml-1.5 text-sm font-medium text-gray-600">
+          {numericRating.toFixed(1)}
         </span>
       )}
     </div>

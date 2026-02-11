@@ -6,277 +6,200 @@ import StarRating from '../../components/StarRating';
 
 const ManageStores = () => {
   const [stores, setStores] = useState([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sortBy, setSortBy] = useState('name');
-  const [sortOrder, setSortOrder] = useState('asc');
-  
+  const [searchFields, setSearchFields] = useState({
+    name: '',
+    email: '',
+    address: '',
+  });
+  const [filters, setFilters] = useState({
+    name: '',
+    email: '',
+    address: '',
+    sortBy: 'created_at',
+    sortOrder: 'desc',
+  });
+
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchStores();
-  }, []);
+  }, [filters]);
 
   const fetchStores = async () => {
     try {
       setLoading(true);
-      const response = await adminAPI.getStores();
-      setStores(response.data.data.stores || response.data);
       setError('');
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to fetch stores');
+      const params = {};
+      if (filters.name) params.name = filters.name;
+      if (filters.email) params.email = filters.email;
+      if (filters.address) params.address = filters.address;
+      params.sortBy = filters.sortBy;
+      params.sortOrder = filters.sortOrder;
+
+      const response = await adminAPI.getStores(params);
+      setStores(response.data.data.stores || []);
+      setTotal(response.data.data.total || 0);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to load stores');
+      setStores([]);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const handleDeleteStore = async (storeId) => {
-    if (!window.confirm('Are you sure you want to delete this store? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      await adminAPI.deleteStore(storeId);
-      setStores(stores.filter(store => store.id !== storeId));
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to delete store');
-    }
-  };
-
-  const filteredStores = stores
-    .filter(store => {
-      const matchesSearch = store.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          store.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          store.owner_name?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const matchesStatus = statusFilter === 'all' || 
-                           (statusFilter === 'active' && store.is_active) ||
-                           (statusFilter === 'inactive' && !store.is_active);
-      
-      return matchesSearch && matchesStatus;
-    })
-    .sort((a, b) => {
-      let aValue, bValue;
-      
-      switch (sortBy) {
-        case 'name':
-          aValue = a.name || '';
-          bValue = b.name || '';
-          break;
-        case 'owner':
-          aValue = a.owner_name || '';
-          bValue = b.owner_name || '';
-          break;
-        case 'rating':
-          aValue = parseFloat(a.average_rating || 0);
-          bValue = parseFloat(b.average_rating || 0);
-          break;
-        case 'created':
-          aValue = new Date(a.created_at || 0);
-          bValue = new Date(b.created_at || 0);
-          break;
-        default:
-          return 0;
-      }
-      
-      if (typeof aValue === 'string') {
-        return sortOrder === 'asc' 
-          ? aValue.localeCompare(bValue)
-          : bValue.localeCompare(aValue);
-      }
-      
-      return sortOrder === 'asc' ? aValue - bValue : bValue - aValue;
+  const handleSearch = (e) => {
+    e.preventDefault();
+    setFilters({
+      ...filters,
+      name: searchFields.name,
+      email: searchFields.email,
+      address: searchFields.address,
     });
-
-  const getStatusBadge = (isActive) => {
-    return isActive ? (
-      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-        Active
-      </span>
-    ) : (
-      <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">
-        Inactive
-      </span>
-    );
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <LoadingSpinner />
-      </div>
-    );
-  }
+  const clearFilters = () => {
+    setSearchFields({ name: '', email: '', address: '' });
+    setFilters({
+      name: '',
+      email: '',
+      address: '',
+      sortBy: 'created_at',
+      sortOrder: 'desc',
+    });
+  };
+
+  const handleSortChange = (value) => {
+    const [sortBy, sortOrder] = value.split('-');
+    setFilters({ ...filters, sortBy, sortOrder });
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-900">Store Management</h1>
-        <button
-          onClick={() => navigate('/admin/stores/create')}
-          className="btn-primary"
-        >
+        <div>
+          <h1 className="page-title">Manage Stores</h1>
+          {!loading && <p className="text-sm text-gray-500 mt-1">{total} stores total</p>}
+        </div>
+        <button onClick={() => navigate('/admin/stores/create')} className="btn-primary">
           Add New Store
         </button>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-      )}
+      {error && <div className="alert-error">{error}</div>}
 
-      <div className="bg-white shadow sm:rounded-lg">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1">
-              <input
-                type="text"
-                placeholder="Search stores by name, description, or owner..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="input-field w-full"
-              />
-            </div>
-            <div className="flex gap-3">
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="input-field"
-              >
-                <option value="all">All Status</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-              <select
-                value={`${sortBy}-${sortOrder}`}
-                onChange={(e) => {
-                  const [field, order] = e.target.value.split('-');
-                  setSortBy(field);
-                  setSortOrder(order);
-                }}
-                className="input-field"
-              >
-                <option value="name-asc">Name A-Z</option>
-                <option value="name-desc">Name Z-A</option>
-                <option value="owner-asc">Owner A-Z</option>
-                <option value="owner-desc">Owner Z-A</option>
-                <option value="rating-desc">Highest Rated</option>
-                <option value="rating-asc">Lowest Rated</option>
-                <option value="created-desc">Newest First</option>
-                <option value="created-asc">Oldest First</option>
-              </select>
-            </div>
+      {/* Filters */}
+      <div className="card">
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <input
+              type="text"
+              placeholder="Filter by store name..."
+              className="input-field"
+              value={searchFields.name}
+              onChange={(e) => setSearchFields({ ...searchFields, name: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Filter by email..."
+              className="input-field"
+              value={searchFields.email}
+              onChange={(e) => setSearchFields({ ...searchFields, email: e.target.value })}
+            />
+            <input
+              type="text"
+              placeholder="Filter by address..."
+              className="input-field"
+              value={searchFields.address}
+              onChange={(e) => setSearchFields({ ...searchFields, address: e.target.value })}
+            />
+            <select
+              className="input-field"
+              value={`${filters.sortBy}-${filters.sortOrder}`}
+              onChange={(e) => handleSortChange(e.target.value)}
+            >
+              <option value="created_at-desc">Newest First</option>
+              <option value="created_at-asc">Oldest First</option>
+              <option value="name-asc">Name A–Z</option>
+              <option value="name-desc">Name Z–A</option>
+              <option value="email-asc">Email A–Z</option>
+              <option value="email-desc">Email Z–A</option>
+            </select>
           </div>
-        </div>
+          <div className="flex gap-2">
+            <button type="submit" className="btn-primary text-sm">Search</button>
+            <button type="button" onClick={clearFilters} className="btn-secondary text-sm">
+              Clear Filters
+            </button>
+          </div>
+        </form>
+      </div>
 
-        <div className="overflow-x-auto">
-          {filteredStores.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No stores found</p>
-            </div>
-          ) : (
+      {/* Stores Table */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <LoadingSpinner size="lg" text="Loading stores..." />
+        </div>
+      ) : stores.length === 0 ? (
+        <div className="card text-center py-12">
+          <svg className="h-12 w-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1" />
+          </svg>
+          <p className="text-gray-500 font-medium">No stores found</p>
+          <p className="text-gray-400 text-sm mt-1">Try adjusting your filters</p>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Store Details
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Owner
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Rating
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Store</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Owner</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rating</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {filteredStores.map((store) => (
+              <tbody className="divide-y divide-gray-200">
+                {stores.map((store) => (
                   <tr key={store.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
-                          {store.name}
-                        </div>
-                        <div className="text-sm text-gray-500 truncate max-w-xs">
-                          {store.description}
-                        </div>
-                        {store.location && (
-                          <div className="text-xs text-gray-400 mt-1">
-                            📍 {store.location}
-                          </div>
-                        )}
+                        <p className="text-sm font-medium text-gray-900">{store.name}</p>
+                        <p className="text-sm text-gray-500">{store.email}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{store.address}</p>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {store.owner_name || 'Unknown'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {store.owner_email}
-                      </div>
+                    <td className="px-6 py-4 text-sm text-gray-600">
+                      {store.owner_name || '—'}
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2">
-                        <StarRating 
-                          rating={parseFloat(store.average_rating || 0)} 
-                          readonly={true}
+                        <StarRating
+                          rating={parseFloat(store.rating || 0)}
+                          readOnly
                           size="sm"
                         />
-                        <div className="text-sm text-gray-600">
+                        <span className="text-xs text-gray-500">
                           ({store.total_ratings || 0})
-                        </div>
+                        </span>
                       </div>
                     </td>
-                    <td className="px-6 py-4">
-                      {getStatusBadge(store.is_active)}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500">
-                      {store.created_at ? new Date(store.created_at).toLocaleDateString() : 'N/A'}
-                    </td>
-                    <td className="px-6 py-4 text-right text-sm font-medium space-x-2">
-                      <button
-                        onClick={() => navigate(`/admin/stores/${store.id}`)}
-                        className="text-primary-600 hover:text-primary-900"
-                      >
-                        View
-                      </button>
-                      <button
-                        onClick={() => navigate(`/admin/stores/${store.id}/edit`)}
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteStore(store.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        Delete
-                      </button>
+                    <td className="px-6 py-4 text-sm text-gray-500 whitespace-nowrap">
+                      {store.created_at ? new Date(store.created_at).toLocaleDateString() : '—'}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
-
-        <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-          <div className="text-sm text-gray-700">
-            Showing {filteredStores.length} of {stores.length} stores
+          </div>
+          <div className="px-6 py-3 bg-gray-50 border-t border-gray-200 text-sm text-gray-500">
+            Showing {stores.length} of {total} stores
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };

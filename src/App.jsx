@@ -5,14 +5,11 @@ import Navbar from './components/Navbar';
 import LoadingSpinner from './components/LoadingSpinner';
 import ChangePassword from './components/ChangePassword';
 
-// Authentication Pages
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 
-// User Pages
 import UserDashboard from './pages/user/UserDashboard';
 
-// Admin Pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import ManageUsers from './pages/admin/ManageUsers';
 import CreateUser from './pages/admin/CreateUser';
@@ -20,10 +17,9 @@ import ManageStores from './pages/admin/ManageStores';
 import CreateStore from './pages/admin/CreateStore';
 import UserDetails from './pages/admin/UserDetails';
 
-// Store Owner Pages
+
 import StoreOwnerDashboard from './pages/store_owner/StoreOwnerDashboard';
 
-// Protected Route Component
 const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { user, loading } = useAuth();
 
@@ -46,7 +42,6 @@ const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   return children;
 };
 
-// Public Route Component (redirects to dashboard if already logged in)
 const PublicRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
@@ -59,7 +54,7 @@ const PublicRoute = ({ children }) => {
   }
 
   if (user) {
-    // Redirect to appropriate dashboard based on role
+
     if (user.role === 'admin') {
       return <Navigate to="/admin/dashboard" replace />;
     } else if (user.role === 'store_owner') {
@@ -72,7 +67,6 @@ const PublicRoute = ({ children }) => {
   return children;
 };
 
-// Dashboard Redirect Component
 const DashboardRedirect = () => {
   const { user } = useAuth();
 
@@ -80,7 +74,7 @@ const DashboardRedirect = () => {
     return <Navigate to="/login" replace />;
   }
 
-  // Redirect to appropriate dashboard based on role
+
   if (user.role === 'admin') {
     return <Navigate to="/admin/dashboard" replace />;
   } else if (user.role === 'store_owner') {
@@ -90,7 +84,7 @@ const DashboardRedirect = () => {
   }
 };
 
-// Unauthorized Page
+
 const UnauthorizedPage = () => {
   const { user } = useAuth();
 
@@ -128,7 +122,6 @@ const UnauthorizedPage = () => {
   );
 };
 
-// Main App Layout
 const AppLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-gray-50">
@@ -140,7 +133,6 @@ const AppLayout = ({ children }) => {
   );
 };
 
-// Main App Component
 const AppContent = () => {
   return (
     <Router>
@@ -169,7 +161,7 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
 
-        {/* User Routes */}
+  
         <Route path="/dashboard" element={
           <ProtectedRoute allowedRoles={['user']}>
             <AppLayout>
@@ -192,7 +184,6 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
 
-        {/* Admin Routes */}
         <Route path="/admin/dashboard" element={
           <ProtectedRoute allowedRoles={['admin']}>
             <AppLayout>
@@ -236,7 +227,6 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
 
-        {/* Store Owner Routes */}
         <Route path="/store-owner/dashboard" element={
           <ProtectedRoute allowedRoles={['store_owner']}>
             <AppLayout>
@@ -259,19 +249,13 @@ const AppContent = () => {
           </ProtectedRoute>
         } />
 
-        {/* Error Routes */}
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="*" element={
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
               <h1 className="text-4xl font-bold text-gray-900">404</h1>
-              <p className="text-gray-600">Page not found</p>
-              <button
-                onClick={() => window.location.href = '/'}
-                className="btn-primary mt-4"
-              >
-                Go Home
-              </button>
+              <p className="text-gray-600 mt-1">Page not found</p>
+              <a href="/" className="btn-primary mt-4 inline-block">Go Home</a>
             </div>
           </div>
         } />
@@ -280,7 +264,6 @@ const AppContent = () => {
   );
 };
 
-// Root App Component
 const App = () => {
   return (
     <AuthProvider>

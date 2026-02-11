@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleLogout = () => {
     logout();
@@ -13,11 +14,17 @@ const Navbar = () => {
     setIsMenuOpen(false);
   };
 
+  const isActive = (path) => location.pathname === path;
+
   const NavLink = ({ to, children, onClick }) => (
     <Link
       to={to}
       onClick={onClick}
-      className="text-gray-700 hover:text-primary-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        isActive(to)
+          ? 'text-primary-700 bg-primary-50'
+          : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'
+      }`}
     >
       {children}
     </Link>
@@ -26,30 +33,44 @@ const Navbar = () => {
   const MobileNavLink = ({ to, children, onClick }) => (
     <Link
       to={to}
-      onClick={onClick}
-      className="text-gray-700 hover:text-primary-600 block px-3 py-2 rounded-md text-base font-medium transition-colors"
+      onClick={() => { setIsMenuOpen(false); onClick?.(); }}
+      className={`block px-3 py-2 rounded-md text-base font-medium transition-colors ${
+        isActive(to)
+          ? 'text-primary-700 bg-primary-50'
+          : 'text-gray-600 hover:text-primary-600 hover:bg-gray-50'
+      }`}
     >
       {children}
     </Link>
   );
 
-  if (!user) {
-    return null; // Don't show navbar if not authenticated
-  }
+  const getRoleBadge = (role) => {
+    const config = {
+      admin: 'badge-admin',
+      store_owner: 'badge-store-owner',
+      user: 'badge-user',
+    };
+    return (
+      <span className={config[role] || 'badge-user'}>
+        {role.replace('_', ' ').toUpperCase()}
+      </span>
+    );
+  };
+
+  if (!user) return null;
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-16">
+        <div className="flex justify-between h-14">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center">
-              <h1 className="text-xl font-bold text-primary-600">Rate & Review</h1>
+            <Link to="/" className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-primary-600">Rate & Review</h1>
             </Link>
           </div>
 
           {/* Desktop Navigation */}
-          <div className="hidden md:flex md:items-center md:space-x-8">
-            {/* Role-based Navigation Links */}
+          <div className="hidden md:flex md:items-center md:gap-1">
             {user.role === 'admin' && (
               <>
                 <NavLink to="/admin/dashboard">Dashboard</NavLink>
@@ -57,46 +78,33 @@ const Navbar = () => {
                 <NavLink to="/admin/stores">Stores</NavLink>
               </>
             )}
-            
+
             {user.role === 'store_owner' && (
               <>
                 <NavLink to="/store-owner/dashboard">Dashboard</NavLink>
-                <NavLink to="/store-owner/stores">My Stores</NavLink>
-                <NavLink to="/store-owner/ratings">My Ratings</NavLink>
-              </>
-            )}
-            
-            {user.role === 'user' && (
-              <>
-                <NavLink to="/dashboard">Dashboard</NavLink>
-                <NavLink to="/stores">Browse Stores</NavLink>
-                <NavLink to="/my-ratings">My Ratings</NavLink>
               </>
             )}
 
-            {/* User Profile Dropdown */}
-            <div className="relative">
-              <div className="flex items-center space-x-4">
-                <NavLink to="/change-password">Change Password</NavLink>
-                <span className="text-sm text-gray-700">
-                  Welcome, {user.name}
+            {user.role === 'user' && (
+              <>
+                <NavLink to="/dashboard">Stores</NavLink>
+              </>
+            )}
+
+            <div className="ml-4 pl-4 border-l border-gray-200 flex items-center gap-3">
+              <NavLink to="/change-password">Change Password</NavLink>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-700 max-w-[140px] truncate" title={user.name}>
+                  {user.name}
                 </span>
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                  user.role === 'admin' 
-                    ? 'bg-red-100 text-red-800'
-                    : user.role === 'store_owner'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-green-100 text-green-800'
-                }`}>
-                  {user.role.replace('_', ' ').toUpperCase()}
-                </span>
-                <button
-                  onClick={handleLogout}
-                  className="text-gray-500 hover:text-gray-700 text-sm font-medium"
-                >
-                  Logout
-                </button>
+                {getRoleBadge(user.role)}
               </div>
+              <button
+                onClick={handleLogout}
+                className="text-gray-500 hover:text-red-600 text-sm font-medium transition-colors"
+              >
+                Logout
+              </button>
             </div>
           </div>
 
@@ -104,21 +112,14 @@ const Navbar = () => {
           <div className="md:hidden flex items-center">
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="text-gray-500 hover:text-gray-700 focus:outline-none focus:text-gray-700 transition-colors"
-              aria-label="toggle menu"
+              className="text-gray-500 hover:text-gray-700 focus:outline-none transition-colors p-2"
+              aria-label="Toggle menu"
             >
-              <svg className="h-6 w-6 fill-current" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 {isMenuOpen ? (
-                  <path
-                    fillRule="evenodd"
-                    clipRule="evenodd"
-                    d="M18.278 16.864a1 1 0 0 1-1.414 1.414l-4.829-4.828-4.828 4.828a1 1 0 0 1-1.414-1.414l4.828-4.829-4.828-4.828a1 1 0 0 1 1.414-1.414l4.829 4.828 4.828-4.828a1 1 0 1 1 1.414 1.414l-4.828 4.829 4.828 4.828z"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 ) : (
-                  <path
-                    fillRule="evenodd"
-                    d="M4 5h16a1 1 0 0 1 0 2H4a1 1 0 1 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2zm0 6h16a1 1 0 0 1 0 2H4a1 1 0 0 1 0-2z"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
                 )}
               </svg>
             </button>
@@ -127,86 +128,39 @@ const Navbar = () => {
 
         {/* Mobile Navigation Menu */}
         {isMenuOpen && (
-          <div className="md:hidden border-t border-gray-200 pt-4 pb-3">
-            <div className="space-y-1">
-              {/* Role-based Mobile Navigation Links */}
-              {user.role === 'admin' && (
-                <>
-                  <MobileNavLink to="/admin/dashboard" onClick={() => setIsMenuOpen(false)}>
-                    Dashboard
-                  </MobileNavLink>
-                  <MobileNavLink to="/admin/users" onClick={() => setIsMenuOpen(false)}>
-                    Users
-                  </MobileNavLink>
-                  <MobileNavLink to="/admin/stores" onClick={() => setIsMenuOpen(false)}>
-                    Stores
-                  </MobileNavLink>
-                </>
-              )}
-              
-              {user.role === 'store_owner' && (
-                <>
-                  <MobileNavLink to="/store-owner/dashboard" onClick={() => setIsMenuOpen(false)}>
-                    Dashboard
-                  </MobileNavLink>
-                  <MobileNavLink to="/store-owner/stores" onClick={() => setIsMenuOpen(false)}>
-                    My Stores
-                  </MobileNavLink>
-                  <MobileNavLink to="/store-owner/ratings" onClick={() => setIsMenuOpen(false)}>
-                    My Ratings
-                  </MobileNavLink>
-                </>
-              )}
-              
-              {user.role === 'user' && (
-                <>
-                  <MobileNavLink to="/dashboard" onClick={() => setIsMenuOpen(false)}>
-                    Dashboard
-                  </MobileNavLink>
-                  <MobileNavLink to="/stores" onClick={() => setIsMenuOpen(false)}>
-                    Browse Stores
-                  </MobileNavLink>
-                  <MobileNavLink to="/my-ratings" onClick={() => setIsMenuOpen(false)}>
-                    My Ratings
-                  </MobileNavLink>
-                </>
-              )}
-              
-              {/* Change Password - Available to all users */}
-              <MobileNavLink to="/change-password" onClick={() => setIsMenuOpen(false)}>
-                Change Password
-              </MobileNavLink>
-            </div>
-            
-            {/* Mobile User Info */}
-            <div className="border-t border-gray-200 pt-4 mt-4">
-              <div className="flex items-center px-3 py-2">
-                <div className="flex-1">
-                  <div className="text-base font-medium text-gray-800">
-                    {user.name}
-                  </div>
-                  <div className="text-sm text-gray-500">
-                    {user.email}
-                  </div>
+          <div className="md:hidden border-t border-gray-200 py-3 space-y-1">
+            {user.role === 'admin' && (
+              <>
+                <MobileNavLink to="/admin/dashboard">Dashboard</MobileNavLink>
+                <MobileNavLink to="/admin/users">Users</MobileNavLink>
+                <MobileNavLink to="/admin/stores">Stores</MobileNavLink>
+              </>
+            )}
+
+            {user.role === 'store_owner' && (
+              <MobileNavLink to="/store-owner/dashboard">Dashboard</MobileNavLink>
+            )}
+
+            {user.role === 'user' && (
+              <MobileNavLink to="/dashboard">Stores</MobileNavLink>
+            )}
+
+            <MobileNavLink to="/change-password">Change Password</MobileNavLink>
+
+            <div className="border-t border-gray-200 pt-3 mt-3 px-3">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-800">{user.name}</p>
+                  <p className="text-xs text-gray-500">{user.email}</p>
                 </div>
-                <span className={`ml-3 px-2 py-1 text-xs font-medium rounded-full ${
-                  user.role === 'admin' 
-                    ? 'bg-red-100 text-red-800'
-                    : user.role === 'store_owner'
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-green-100 text-green-800'
-                }`}>
-                  {user.role.replace('_', ' ').toUpperCase()}
-                </span>
+                {getRoleBadge(user.role)}
               </div>
-              <div className="px-3 py-2">
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left text-base font-medium text-gray-500 hover:text-gray-700"
-                >
-                  Sign out
-                </button>
-              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full text-left text-sm font-medium text-red-600 hover:text-red-700 py-2"
+              >
+                Sign out
+              </button>
             </div>
           </div>
         )}

@@ -4,6 +4,12 @@ import { adminAPI } from '../../utils/api';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import StarRating from '../../components/StarRating';
 
+const ROLE_MAP = {
+  admin: { cls: 'badge-admin', label: 'Admin' },
+  user: { cls: 'badge-user', label: 'User' },
+  store_owner: { cls: 'badge-store-owner', label: 'Store Owner' },
+};
+
 const UserDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -12,182 +18,121 @@ const UserDetails = () => {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    fetchUserDetails();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  const fetchUserDetails = async () => {
-    try {
+    let cancelled = false;
+    const fetchUser = async () => {
       setLoading(true);
-      const response = await adminAPI.getUserById(id);
-      setUser(response.data.data.user);
-    } catch (error) {
-      setError(error.response?.data?.message || 'Failed to fetch user details');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getRoleBadge = (role) => {
-    const roleConfig = {
-      admin: { color: 'bg-red-100 text-red-800', label: 'System Administrator' },
-      user: { color: 'bg-gray-100 text-gray-800', label: 'Normal User' },
-      store_owner: { color: 'bg-blue-100 text-blue-800', label: 'Store Owner' }
+      try {
+        const res = await adminAPI.getUserById(id);
+        if (!cancelled) setUser(res.data.data.user);
+      } catch (err) {
+        if (!cancelled) setError(err.response?.data?.message || 'Failed to fetch user details');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-
-    const config = roleConfig[role] || roleConfig.user;
-    return (
-      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
-        {config.label}
-      </span>
-    );
-  };
+    fetchUser();
+    return () => { cancelled = true; };
+  }, [id]);
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-96">
-        <LoadingSpinner size="lg" />
+      <div className="flex justify-center items-center min-h-[400px]">
+        <LoadingSpinner size="lg" text="Loading user details..." />
       </div>
     );
   }
 
-  if (error) {
+  if (error || !user) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-          {error}
-        </div>
-        <button
-          onClick={() => navigate('/admin/users')}
-          className="mt-4 btn-secondary"
-        >
+      <div className="max-w-3xl mx-auto">
+        <div className="alert-error">{error || 'User not found'}</div>
+        <button onClick={() => navigate('/admin/users')} className="mt-4 btn-secondary">
           ← Back to Users
         </button>
       </div>
     );
   }
 
-  if (!user) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center py-12">
-          <p className="text-gray-500">User not found</p>
-        </div>
-        <button
-          onClick={() => navigate('/admin/users')}
-          className="btn-secondary"
-        >
-          ← Back to Users
-        </button>
-      </div>
-    );
-  }
+  const role = ROLE_MAP[user.role] || ROLE_MAP.user;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-3xl mx-auto">
       <div className="mb-6">
         <button
           onClick={() => navigate('/admin/users')}
-          className="text-primary-600 hover:text-primary-800 mb-4"
+          className="text-sm text-primary-600 hover:text-primary-800 font-medium"
         >
           ← Back to Users
         </button>
-        <div className="flex items-center justify-between">
-          <h1 className="text-3xl font-bold text-gray-900">User Details</h1>
-          {getRoleBadge(user.role)}
+        <div className="flex items-center gap-3 mt-2">
+          <h1 className="page-title !mb-0">User Details</h1>
+          <span className={`badge ${role.cls}`}>{role.label}</span>
         </div>
       </div>
 
-      <div className="bg-white shadow overflow-hidden sm:rounded-lg mb-6">
-        <div className="px-4 py-5 sm:px-6">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Personal Information
-          </h3>
-          <p className="mt-1 max-w-2xl text-sm text-gray-500">
-            Basic details and account information.
-          </p>
+      {/* Personal Information */}
+      <div className="bg-white shadow-sm border border-gray-200 rounded-lg mb-6">
+        <div className="px-6 py-4 border-b border-gray-100">
+          <h2 className="section-title !mb-0">Personal Information</h2>
         </div>
-        <div className="border-t border-gray-200">
-          <dl>
-            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Full name</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {user.name}
-              </dd>
+        <dl className="divide-y divide-gray-100">
+          {[
+            ['Full Name', user.name],
+            ['Email', user.email],
+            ['Address', user.address || '—'],
+            ['Role', <span key="role" className={`badge ${role.cls}`}>{role.label}</span>],
+            [
+              'Member Since',
+              new Date(user.created_at).toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+              }),
+            ],
+          ].map(([label, value]) => (
+            <div key={label} className="px-6 py-3 sm:grid sm:grid-cols-3 sm:gap-4">
+              <dt className="text-sm font-medium text-gray-500">{label}</dt>
+              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">{value}</dd>
             </div>
-            <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Email address</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {user.email}
-              </dd>
-            </div>
-            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Address</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {user.address}
-              </dd>
-            </div>
-            <div className="bg-white px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Role</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {getRoleBadge(user.role)}
-              </dd>
-            </div>
-            <div className="bg-gray-50 px-4 py-5 sm:grid sm:grid-cols-3 sm:gap-4 sm:px-6">
-              <dt className="text-sm font-medium text-gray-500">Member since</dt>
-              <dd className="mt-1 text-sm text-gray-900 sm:mt-0 sm:col-span-2">
-                {new Date(user.created_at).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </dd>
-            </div>
-          </dl>
-        </div>
+          ))}
+        </dl>
       </div>
 
-      {/* Store Owner Specific Information */}
-      {user.role === 'store_owner' && user.stores && user.stores.length > 0 && (
-        <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-          <div className="px-4 py-5 sm:px-6">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              Store Information
-            </h3>
-            <p className="mt-1 max-w-2xl text-sm text-gray-500">
-              Stores owned by this user and their ratings.
-            </p>
+      {/* Stores — only for store_owners */}
+      {user.role === 'store_owner' && (
+        <div className="bg-white shadow-sm border border-gray-200 rounded-lg">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="section-title !mb-0">Owned Stores</h2>
           </div>
-          <div className="border-t border-gray-200">
-            <div className="px-4 py-5 sm:px-6">
-              <div className="space-y-4">
-                {user.stores.map((store, index) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h4 className="text-lg font-medium text-gray-900">
+
+          {(!user.stores || user.stores.length === 0) ? (
+            <p className="px-6 py-8 text-center text-sm text-gray-500">No stores assigned yet.</p>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {user.stores.map((store, idx) => {
+                const avg = parseFloat(store.average_rating || 0);
+                const total = Number(store.total_ratings || 0);
+                return (
+                  <div key={idx} className="px-6 py-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <h4 className="text-sm font-medium text-gray-900 truncate">
                         {store.store_name}
                       </h4>
-                      <div className="flex items-center space-x-2">
-                        <StarRating rating={parseFloat(store.average_rating || 0)} readOnly size="sm" />
-                        <span className="text-sm text-gray-600">
-                          ({store.total_ratings} {store.total_ratings === 1 ? 'rating' : 'ratings'})
-                        </span>
-                      </div>
-                    </div>
-                    {store.average_rating ? (
-                      <p className="text-sm text-gray-600">
-                        Average Rating: <span className="font-medium text-yellow-600">
-                          {parseFloat(store.average_rating).toFixed(1)}★
-                        </span>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {total} {total === 1 ? 'rating' : 'ratings'}
                       </p>
-                    ) : (
-                      <p className="text-sm text-gray-500 italic">No ratings yet</p>
-                    )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <StarRating rating={avg} readOnly size="sm" />
+                      <span className="text-sm font-medium text-gray-700 w-8 text-right">
+                        {avg > 0 ? avg.toFixed(1) : '—'}
+                      </span>
+                    </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
